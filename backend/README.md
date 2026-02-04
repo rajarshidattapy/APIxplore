@@ -1,119 +1,64 @@
 # Policy-Aware AI API Explorer - Backend
 
-A FastAPI backend for analyzing API safety and generating dynamic UI plans.
+A FastAPI backend for analyzing API safety and generating dynamic UI plans using LLMs.
 
-## Quick Start
+## ⚙️ Setup
 
+### 1. Install Dependencies
 ```bash
-# Install dependencies
 pip install -r requirements.txt
+```
 
-# Run server
+### 2. Environment Variables
+Create a `.env` file in the `backend` directory with the following:
+```env
+# Server
+HOST=0.0.0.0
+PORT=8000
+LOCAL_MODE=0  # Set to 0 to use LLM, 1 for mock rules
+
+# Supabase (Required)
+SUPABASE_URL=your_supabase_url
+SUPABASE_KEY=your_supabase_anon_key
+
+# LLM Providers (At least one required if LOCAL_MODE=0)
+LLM_PROVIDER=gemini # or openai
+GEMINI_API_KEY=your_gemini_key
+OPENAI_API_KEY=your_openai_key
+```
+
+### 3. Database Setup (Supabase)
+Run the SQL scripts in the `sql/` folder using the Supabase SQL Editor:
+1. `sql/schema.sql` - Creates tables (`user_profiles`, `safety_verdicts`, etc.).
+2. **Backfill Profiles**: If you have existing users, run this query to fix missing profiles:
+   ```sql
+   insert into public.user_profiles (id, email, full_name, avatar_url)
+   select id, email, coalesce(raw_user_meta_data->>'full_name', split_part(email, '@', 1)), raw_user_meta_data->>'avatar_url'
+   from auth.users
+   where id not in (select id from public.user_profiles);
+   ```
+
+### 4. Run Server
+```bash
 uvicorn main:app --reload --port 8000
 ```
+Server runs at `http://localhost:8000`.
 
-## Expected Output
+## 📚 API Documentation
+- **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)  
+- **ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
 
-```
-INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
-INFO:     Started server process [PID]
-INFO:     Waiting for application startup.
-Policy-Aware AI API Explorer started
-INFO:     Application startup complete.
-```
+## 📡 Endpoints
 
-## API Documentation
+### `/analyze-api` (POST)
+Analyzes an API specification and user intent for safety risks.
+- **Input**: `api_spec`, `user_intent`
+- **Output**: `SafetyVerdict` (threat, urgency, sensitive_request, risk_score)
 
-- **Swagger UI**: http://127.0.0.1:8000/docs
-- **ReDoc**: http://127.0.0.1:8000/redoc
+### `/generate-ui-plan` (POST)
+Generates a UI Plan based on the safety verdict.
+- **Input**: `SafetyVerdict`, `api_spec`
+- **Output**: `UIPlan` (components, restrictions, warnings)
 
-## Endpoints
-
-### Health Check
-```http
-GET /health
-```
-Response:
-```json
-{"status": "healthy"}
-```
-
-### Safety Analysis
-```http
-POST /analyze-api
-Content-Type: application/json
-
-{
-  "api_spec": "openapi: 3.0.0...",
-  "user_intent": "process payment",
-  "example_payloads": [],
-  "constructed_input": {"card_number": "4111"}
-}
-```
-Response:
-```json
-{
-  "urgency": false,
-  "threat": false,
-  "sensitive_request": true,
-  "explanation": "Sensitive fields detected: card_number"
-}
-```
-
-### UI Plan Generation
-```http
-POST /generate-ui-plan
-Content-Type: application/json
-
-{
-  "urgency": true,
-  "threat": false,
-  "sensitive_request": true,
-  "explanation": "API requests card number and CVV"
-}
-```
-Response:
-```json
-{
-  "components": ["EndpointList", "RequestBuilder", "ResponseViewer", "SafetyInspector"],
-  "restrictions": {
-    "execute_requests": false,
-    "edit_payloads": true,
-    "show_sensitive_fields": false,
-    "editable_fields": []
-  }
-}
-```
-
-## Console Logs
-
-Successful requests:
-```
-INFO:     127.0.0.1:12345 - "POST /analyze-api HTTP/1.1" 200 OK
-```
-
-## Environment Variables
-
-See `.env.example` for required configuration:
-- `SUPABASE_URL` - Supabase project URL
-- `SUPABASE_KEY` - Supabase anon key
-- `LOCAL_MODE` - 1 for rules only, 0 for rules + LLM
-
-## Project Structure
-
-```
-backend/
-├── middleware/          # CORS, logging, error, safety middleware
-├── routers/             # API routes
-│   ├── api.py           # Health check
-│   ├── analyze_api.py   # POST /analyze-api
-│   └── ui_plan.py       # POST /generate-ui-plan
-├── services/            # Business logic
-│   ├── safety_service.py
-│   ├── ui_service.py
-│   └── supabase_service.py
-├── sql/                 # Database schema & policies
-├── config.py            # Configuration
-├── main.py              # FastAPI app
-└── requirements.txt     # Dependencies
-```
+## 🛠️ Utilities
+- `check_profiles.py`: A script to verify `user_profiles` table data.

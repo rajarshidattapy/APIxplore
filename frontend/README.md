@@ -1,65 +1,48 @@
-# Frontend Integration Notes
+# Policy-Aware AI API Explorer - Frontend
 
-This directory contains the frontend for the Policy-Aware AI API Explorer.
+A Next.js 14 application providing an interactive API Explorer that dynamically adapts based on safety policies.
 
-## Structure
+## ⚙️ Setup
 
-```
-frontend/
-├── nextjs/          # Next.js application
-│   ├── pages/       # Page components
-│   ├── components/  # Reusable components
-│   └── README.md    # Frontend-specific instructions
-└── README.md        # This file
+### 1. Install Dependencies
+```bash
+npm install
 ```
 
-## Integration with Backend
+### 2. Environment Variables
+Create a `.env.local` file in the `frontend` directory:
 
-The frontend communicates with the backend safety analyzer via REST API:
+```env
+# Backend URL
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
 
-**Backend Endpoint:** `http://localhost:8000/analyze`
-
-**Request Format:**
-```json
-{
-  "api_spec": "OpenAPI/Swagger spec as text",
-  "user_intent": "What the user wants to do",
-  "example_payloads": [{"key": "value"}],
-  "constructed_input": {"key": "value"}
-}
+# Supabase Auth (Must match backend project)
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
-**Response Format:**
-```json
-{
-  "verdict": {
-    "urgency": false,
-    "threat": false,
-    "sensitive_request": true,
-    "execution_risk": true,
-    "data_exposure_risk": false,
-    "policy_explanation": "sensitive data + execution risk"
-  },
-  "ui_contract": {
-    "components": ["EndpointList", "SchemaViewer", "SafetyInspector"],
-    "restrictions": {
-      "execute_requests": false,
-      "edit_payloads": false,
-      "show_sensitive_fields": false
-    },
-    "warnings": ["Warning message"],
-    "blocked": false
-  }
-}
+### 3. Run Development Server
+```bash
+npm run dev
 ```
+Open [http://localhost:3000](http://localhost:3000) to view the app.
 
-## UI Contract Rendering
+## 🧩 Key Components
 
-The frontend renders UI based on the `ui_contract`:
+### `Explorer Page` (`/explorer`)
+The main interface where users can:
+- Select demo endpoints (Safe, Sensitive, Dangerous).
+- Analyze API safety (calls backend).
+- View dynamic UI restrictions (e.g., disallowed execution).
 
-- **components**: Which components to display
-- **restrictions.execute_requests**: Enable/disable Execute button
-- **restrictions.edit_payloads**: Enable/disable payload editing
-- **restrictions.show_sensitive_fields**: Show/hide sensitive values
-- **warnings**: Display warning banners
-- **blocked**: Show blocked state with SafetyInspector only
+### `Components`
+- **`EndpointList`**: Displays categorized endpoints.
+- **`RequestBuilder`**: Allows building requests; strictly controlled by backend permissions.
+- **`SafetyInspector`**: Visualizes the AI's safety analysis and risk score.
+
+### `Account Settings` (`/account`)
+Manage user profile, bio, and preferences. Integrated with Supabase `user_profiles`.
+
+## 🔄 Integration
+The frontend uses `src/services/api.ts` to communicate with the backend:
+- `analyzeAndPlan()`: Orchestrates the safety analysis and UI planning in one flow.
