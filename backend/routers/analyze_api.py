@@ -1,12 +1,11 @@
-"""
-Analyze API Router - Handles /analyze-api endpoint.
-"""
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional
 
+from config import settings
 from services.safety_service import analyze_request, get_conservative_verdict
 from services.supabase_service import SupabaseService
+from services.llm_service import get_llm_service
 
 router = APIRouter()
 
@@ -72,17 +71,39 @@ async def analyze_api(
     """
     Analyze an API request for safety concerns.
     Returns a safety verdict with urgency, threat, sensitive_request flags.
+    
+    When LOCAL_MODE=0, uses OpenAI LLM for enhanced analysis.
+    When LOCAL_MODE=1, uses rules-based analysis only.
     """
     try:
         # Convert api_spec object to string for analysis
         api_spec_str = f"{request.api_spec.method} {request.api_spec.endpoint}"
         
-        verdict = analyze_request(
-            api_spec=api_spec_str,
-            user_intent=request.user_intent,
-            example_payloads=[],
-            constructed_input={}
-        )
+        # Use LLM-powered analysis when LOCAL_MODE is disabled
+        if not settings.LOCAL_MODE:
+            print(f"Using {settings.LLM_PROVIDER} LLM for safety analysis...", flush=True)
+            llm_service = get_llm_service()
+            verdict = await llm_service.analyze_safety(
+                api_spec=api_spec_str,
+                user_intent=request.user_intent,
+                example_payloads=[],
+                constructed_input={}
+            )
+            # Extract core verdict fields for response
+            verdict = {
+                "urgency": verdict.get("urgency", False),
+                "threat": verdict.get("threat", False),
+                "sensitive_request": verdict.get("sensitive_request", False),
+                "explanation": verdict.get("explanation", "")
+            }
+        else:
+            # Rules-based analysis (LOCAL_MODE=1)
+            verdict = analyze_request(
+                api_spec=api_spec_str,
+                user_intent=request.user_intent,
+                example_payloads=[],
+                constructed_input={}
+            )
         
         # Log to Supabase
         spec_id = supabase.insert_api_spec(
@@ -103,3 +124,4 @@ async def analyze_api(
     except Exception as e:
         print(f"Error in analyze_api: {e}")
         return SafetyVerdict(**get_conservative_verdict())
+
